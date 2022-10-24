@@ -27,7 +27,7 @@ public class GroupController {
     }
 
     @GetMapping("/groupInfo/{userId}")
-    public Response<List<GroupInfoDTO>> groupInfoByLcid(@PathVariable("lcid") String userId){
+    public Response<List<GroupInfoDTO>> groupInfoByUserId(@PathVariable("userId") String userId){
         return groupService.groupInfoByUserId(userId);
     }
 }

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wzy.kts.dao.GroupMemberInfoMapper">
+    <select id="findMembersByGroupId" resultType="com.wzy.kts.entity.group.GroupMemberInfo">
+        select lgi.group_id, group_member,userid, user_name, avatar
+        from mychat_group_info lgi
+                 left join mychat_group_member lgm on lgi.group_id = lgm.group_id
+                 left join mychat_user_info lui on lgm.group_member = lui.user_id
+        where lgi.group_id = #{groupId};
+    </select>
+</mapper>

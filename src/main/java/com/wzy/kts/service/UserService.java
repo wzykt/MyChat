@@ -3,7 +3,13 @@ package com.wzy.kts.service;
 import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.io.unit.DataUnit;
+import com.aliyun.oss.OSS;
+import com.aliyun.oss.OSSClientBuilder;
+import com.aliyun.oss.model.CannedAccessControlList;
+import com.aliyun.oss.model.PutObjectRequest;
+import com.aliyun.oss.model.PutObjectResult;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.wzy.kts.dao.FriendMapper;
 import com.wzy.kts.dao.UserMapper;
 import com.wzy.kts.entity.Response;
 import com.wzy.kts.entity.ResponseCode;
@@ -20,11 +26,15 @@ import org.springframework.util.ObjectUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * @author yu.wu
@@ -51,6 +61,9 @@ public class UserService {
 
     @Autowired
     private UserMapper userMapper;
+
+    @Autowired
+    private FriendMapper friendMapper;
 
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
@@ -122,11 +135,13 @@ public class UserService {
         return Response.success(userInfos);
     }
 
-    public Response<List<UserInfo>> getFriendInfo(String userId) {
-
-        return Response.success();
-    }
-
+    /**
+     * @param file
+     * @param userId
+     * @param flag
+     * @return
+     * @description 上传图片
+     */
     public Response<UserInfo> uploadFile(MultipartFile file, String userId, boolean flag) {
         String url = handlerFile(file, flag);
         if (!StringUtils.hasText(url)) {
@@ -148,9 +163,9 @@ public class UserService {
 
     private String handlerFile(MultipartFile file, boolean flag) {
         String url = "";
-        if(file != null){
+        if (file != null) {
             String originalFilename = "";
-            if(file.getOriginalFilename() != null && !"".equals(originalFilename = file.getOriginalFilename())){
+            if (file.getOriginalFilename() != null && !"".equals(originalFilename = file.getOriginalFilename())) {
                 File localFile = new File(originalFilename);
                 try (FileOutputStream outputStream = new FileOutputStream(localFile)) {
                     outputStream.write(file.getBytes());
@@ -169,12 +184,39 @@ public class UserService {
     }
 
     /**
-     * @description 上传到阿里云OSS
      * @param localFile
-     * @param flag
+     * @param flag      判断是background还是avatar
      * @return
+     * @description 上传到阿里云OSS
      */
     private String uploadLocalFileToOSS(File localFile, boolean flag) {
-        return "";
+        OSS ossClient = new OSSClientBuilder().build(endPoint, accessKeyId, accessKeySecret);
+        boolean isImage = true;
+        try {
+            BufferedImage image = ImageIO.read(localFile);
+            isImage = image != null;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd");
+        String dataStr = format.format(new Date());
+        String filePre = flag ? "background" : "avatar";
+        String fileAddress = filePre + "/" + dataStr + "/" + UUID.randomUUID().toString().replace("-", "")
+                + "-" + localFile.getName();
+        PutObjectRequest putObjectRequest = new PutObjectRequest(bucket, fileAddress, localFile);
+        String fileUrl;
+        if (isImage) {
+            fileUrl = "https://" + bucket + "." + endPoint + "/" + fileAddress;
+        } else {
+            fileUrl = "非图片 不可预览 文件路径为: " + fileAddress;
+        }
+        PutObjectResult result = ossClient.putObject(putObjectRequest);
+        ossClient.setBucketAcl(bucket, CannedAccessControlList.PublicRead);
+        if (result != null) {
+            log.info("OSS文件上传成功，URL: {}", fileUrl);
+        }
+        ossClient.shutdown();
+        return fileUrl;
     }
 }
